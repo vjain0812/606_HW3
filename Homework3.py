@@ -198,11 +198,108 @@ class HashMap:
 
 def generate_keys(distribution, n):
     # uniform, skewed, or sequential
-    pass
+    if distribution == "uniform":
+        return [random.randint(0, 10 * n) for _ in range(n)]
+    elif distribution == "skewed":
+        keys = []
+        for _ in range(n):
+            if random.random() < 0.8:
+                keys.append(random.randint(0, 100))
+            else:
+                keys.append(random.randint(0, 10 * n))
+        return keys
+    elif distribution == "sequential":
+        return list(range(n))
+    else:
+        raise ValueError(f"Unknown distribution: '{distribution}'. ","\nUse 'uniform', 'skewed', or 'sequential'.")
 
 def measure_search_time(hashmap, keys):
     # use time.perf_counter()
-    pass
+    times = []
+    for k in keys:
+        t0 = time.perf_counter()
+        hashmap.search(k)
+        t1 = time.perf_counter()
+        times.append(t1 - t0)
+    return sum(times) / len(times)
+
+def experiment_load_factor_vs_time():
+    TABLE_SIZES  = [503, 1009, 5003]       # taking three fixed prime sizes for table
+    LOAD_STEPS   = [0.1, 0.2, 0.3, 0.4, 0.45]
+    SAMPLE_SIZE  = 200                     # sampled per timing unit
+    HASH_METHODS = ["division", "multiplication"]
+ 
+    print("EXPERIMENT 1: Load Factor vs. Average Search Time")
+    hdr = (f"{'Method':<16} {'TableSize':>10} {'LoadFactor':>11} "
+           f"{'SuccAvg(µs)':>13} {'FailAvg(µs)':>13}")
+    print(hdr)
+    print("\n\n")
+ 
+    for method in HASH_METHODS:
+        for size in TABLE_SIZES:
+            # builds a pool of keys big enough to reach max load step
+            max_keys = int(LOAD_STEPS[-1] * size) + 10
+            all_keys = list(range(max_keys * 3))      # sequential pooling
+            random.shuffle(all_keys)
+            inserted = []
+            hm = HashMap(size=size, hash_method=method)
+ 
+            step_idx = 0
+            for key in all_keys:
+                if step_idx >= len(LOAD_STEPS):
+                    break
+                hm.insert(key, key)
+                inserted.append(key)
+ 
+                target_load = LOAD_STEPS[step_idx]
+                if hm.load_factor() >= target_load - 0.005:
+                    sample_hit  = random.sample(inserted, min(SAMPLE_SIZE, len(inserted)))
+                    avg_success = measure_search_time(hm, sample_hit) * 1e6   
+ 
+                    fail_start  = max_keys * 3 + 1
+                    sample_miss = list(range(fail_start, fail_start + SAMPLE_SIZE))
+                    avg_fail    = measure_search_time(hm, sample_miss) * 1e6  
+ 
+                    print(f"{method:<16} {size:>10} {hm.load_factor():>11.3f} "
+                          f"{avg_success:>13.4f} {avg_fail:>13.4f}")
+                    step_idx += 1
+ 
+        print()
+
+def experiment_key_distribution():
+    TABLE_SIZE   = 1009
+    TARGET_LOAD  = 0.4
+    N_KEYS       = int(TABLE_SIZE * TARGET_LOAD)
+    DISTRIBUTIONS = ["uniform", "skewed", "sequential"]
+    HASH_METHODS  = ["division", "multiplication"]
+    SAMPLE_SIZE   = 200
+ 
+    print("EXPERIMENT 2: Key Distribution Comparisons  "
+          f"(table_size={TABLE_SIZE}, target_load≈{TARGET_LOAD})")
+ 
+    print("\n\nPart A: Average Search Time by Distribution\n\n")
+    hdr = (f"{'Method':<16} {'Distribution':<14} {'ActualLoad':>11} "
+           f"{'SuccAvg(µs)':>13} {'FailAvg(µs)':>13}")
+    print(hdr)
+    print("\n\n")
+ 
+    for method in HASH_METHODS:
+        for dist in DISTRIBUTIONS:
+            keys = generate_keys(dist, N_KEYS)
+            hm   = HashMap(size=TABLE_SIZE, hash_method=method)
+            for k in keys:
+                hm.insert(k, k)
+ 
+            sample_hit  = random.sample(keys, min(SAMPLE_SIZE, len(keys)))
+            avg_success = measure_search_time(hm, sample_hit) * 1e6
+ 
+            fail_base   = max(keys) + 1000 if keys else 10_000
+            sample_miss = list(range(fail_base, fail_base + SAMPLE_SIZE))
+            avg_fail    = measure_search_time(hm, sample_miss) * 1e6
+ 
+            print(f"{method:<16} {dist:<14} {hm.load_factor():>11.3f} "
+                  f"{avg_success:>13.4f} {avg_fail:>13.4f}")
+        print()
 
 def run_experiments():
     # test across different table sizes and load factors
