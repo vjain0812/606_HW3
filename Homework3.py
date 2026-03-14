@@ -301,6 +301,90 @@ def experiment_key_distribution():
                   f"{avg_success:>13.4f} {avg_fail:>13.4f}")
         print()
 
+    # memory overhead
+    print("\n\nPart B: Average Probe Length (Open Addressing Memory Overhead)\n\n")
+    hdr2 = (f"{'Method':<16} {'Distribution':<14} "
+            f"{'AvgInsertProbes':>16} {'AvgSearchHitProbes':>19} "
+            f"{'AvgSearchMissProbes':>20}")
+    print(hdr2)
+    print("\n\n")
+ 
+    for method in HASH_METHODS:
+        for dist in DISTRIBUTIONS:
+            keys = generate_keys(dist, N_KEYS)
+            hm   = HashMap(size=TABLE_SIZE, hash_method=method)
+ 
+            # measures insertion probe lengths
+            insert_probes = []
+            for k in keys:
+                p = hm.insert_with_probes(k, k)
+                insert_probes.append(p)
+ 
+            # meeasures (successful)search probe lengths
+            sample_hit   = random.sample(keys, min(SAMPLE_SIZE, len(keys)))
+            search_hit_p = [hm.search_with_probes(k)[1] for k in sample_hit]
+ 
+            # measures (unsuccessful) search probe lengths
+            fail_base    = max(keys) + 1000 if keys else 10_000
+            sample_miss  = list(range(fail_base, fail_base + SAMPLE_SIZE))
+            search_miss_p = [hm.search_with_probes(k)[1] for k in sample_miss]
+ 
+            avg_ins  = sum(insert_probes)   / len(insert_probes)
+            avg_hit  = sum(search_hit_p)    / len(search_hit_p)
+            avg_miss = sum(search_miss_p)   / len(search_miss_p)
+ 
+            print(f"{method:<16} {dist:<14} "
+                  f"{avg_ins:>16.3f} {avg_hit:>19.3f} {avg_miss:>20.3f}")
+        print()
+ 
+
 def run_experiments():
-    # test across different table sizes and load factors
-    pass
+    # tests across different table sizes and load factors
+    experiment_load_factor_vs_time()
+    experiment_key_distribution()
+
+if __name__ == "__main__":
+    print("Basic functionality test")
+    hm = HashMap(size=11)
+ 
+    hm.insert("apple",  1)
+    hm.insert("banana", 2)
+    hm.insert("cherry", 3)
+    hm.insert(42,       99)
+ 
+    print("apple  →", hm.search("apple"))
+    print("banana →", hm.search("banana"))
+    print("cherry →", hm.search("cherry"))
+    print("42     →", hm.search(42))      
+    print("missing→", hm.search("missing"))
+ 
+    # updating existing key and then looking up updated value
+    hm.insert("apple", 100)
+    print("apple (updated) →", hm.search("apple")) 
+ 
+    # deleting and confirming tombstone doesnt break further probes
+    hm.delete("banana")
+    print("banana (deleted)→", hm.search("banana")) 
+    print("cherry after delete →", hm.search("cherry"))
+ 
+    print(hm)
+ 
+    print("\n\nDynamic resizing test")
+    hm2 = HashMap(size=5)
+    for i in range(20):
+        hm2.insert(i, i ** 2)
+    print(f"After 20 inserts: {hm2}")
+    print("key 7 →", hm2.search(7))
+ 
+    print("\n\nMultiplication method test")
+    hm3 = HashMap(size=11, hash_method="multiplication")
+    for i in range(10):
+        hm3.insert(i * 10, i)
+    for i in range(10):
+        print(f"  key {i*10:3d} → {hm3.search(i*10)}")
+    print(hm3)
+    
+    run_experiments()
+
+
+    
